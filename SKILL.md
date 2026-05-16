@@ -361,29 +361,29 @@ def parse_date(date_str):
 
 #### 4.4 输出格式
 
+**操作：** execute_code 提取完成后，URL 已写入 `/tmp/urls.json`。在 terminal 中用 Python 一行脚本从 json 读数据并 print Markdown Top 10，输出到终端后直接复制到回复中。**严禁从 execute_code 控制台输出中复制 URL。**
+
+```bash
+python3 -c "
+import json
+with open('/tmp/urls.json') as f:
+    data = json.load(f)
+total = len(data)
+succ = sum(1 for r in data if r['url'])
+print(f'**Hermes agent 公众号文章搜索**')
+print()
+print(f'搜到 {total} 篇 → 提取 {total} 篇 → {succ} 篇有链接（成功率 {100*succ//max(total,1)}%）')
+print()
+print('🔥 Top 10：')
+print()
+for i, r in enumerate(data[:10]):
+    if r['url']:
+        print(f\"{i+1}. [{r['title']}]({r['url']}) — {r['date']}\")
+"
+```
+
 **回复用户时只发摘要，不要全文罗列所有文章。完整数据存 `/tmp/urls.json`。**
-
-**固定格式：**
-
-```
-**关键词 公众号文章搜索**
-
-搜到 X 篇 → 提取 Y 篇 → Z 篇有链接（成功率 N%）
-
-🔥 Top 10：
-
-1. [标题](http://mp.weixin.qq.com/s/...) — 时间
-2. [标题](http://mp.weixin.qq.com/s/...) — 时间
-...
-```
-
-**规则：**
-- 开头一行摘要：搜到/提取/有链接 三段数据
-- 主体用 Markdown 嵌入链接 `[标题](url) — 相对时间`，不用 `🔗` 前缀
-- 默认 Top 10，按时间倒序（最新的排前面）
-- 链接失败的跳过不展示，不在回复里列 ⚠
-- 不要加来源公众号名，不要加摘要/简介
-- 按时间倒序排列即可，不需要分「24小时内」「2-7天」等组
+- ⚠️ 输出后追加一行提示：`> 💡 如在微信内点链接提示「参数错误」，这是微信的反爬限制（与URL格式无关）。需要的话我可以帮你抓取全文发过来~`
 ```
 
 ### Step 5: 完成后的清理
@@ -446,7 +446,7 @@ DOM 中无 href。点击 `.search_list_item`（卡片 DIV，有 `__vue__` 属性
 | 滚动中途停滞（非 15 篇）— 是真上限还是 session 断了？ | **两步确诊**：① 先查「暂无更多内容」返回 `true` = 确定性终止。② 连续 3 轮不变 = plateau 兜底。如果一开始卡 15 才是 session 丢失 |
 | 长滚动（>3 轮）不要用 background 进程 | ❌ `background=true` 的 terminal 可能无声卡住。**超过 3 轮滚动必须用前台 terminal + 长 timeout（600s）** |
 | 批量提取 URL 部分错位（~40%） | Vue 异步调用 `window.open`。**修复：async function + `await sleep(50)` + `awaitPromise: true`** |
-| 部分链接点进去「参数错误」 | ⚠️ 不是提取 bug！某些 mp.weixin.qq.com 文章服务端返回「参数错误」是微信的反爬/权限控制，与 URL 格式无关 |
+| 部分链接点进去「参数错误」 | ⚠️ 不是提取 bug！某些 mp.weixin.qq.com 文章服务端返回「参数错误」是微信的反爬/权限控制，与 URL 格式无关。**用户反馈时：① 立即用 CDP 浏览器抽查 2-3 条验证链接正常；② 主动 offer 帮用户 CDP 抓取全文内容发过来；③ 不要在链接格式、编码上浪费时间调试** |
 
 ---
 
