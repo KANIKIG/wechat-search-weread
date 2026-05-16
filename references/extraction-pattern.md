@@ -206,3 +206,4 @@ print(f"Done: {sum(1 for a in articles if a['url'])}/{len(articles)} URLs")
 4. **URL 验证**：提取后用 CDP 浏览器 `goto` 抽查 3-5 条，确认页面加载了文章标题（而非空壳/参数错误）。不要用 curl 验证——curl 可能拿到空壳模板但 HTTP 200。也不要因部分链接「参数错误」反复调整 URL 编码——这是微信服务端行为，与提取无关。
 5. **元数据采集可选**：如果已通过 agent-browser 采集了 `/tmp/arts.json`，可跳过 `extract_articles`，直接用 `extract_filtered`。
 6. **`Page.enable`**：保留但不再依赖 CDP 事件监听。
+7. **🚨 URL 防截断**：`extract_all` 后将 `results` 写入 `/tmp/urls.json`。回复用户时用 terminal 中 Python 脚本从 `/tmp/urls.json` 读取并 print Markdown Top 10，复制到回复。**严禁从 execute_code 控制台 print 输出中复制 URL**（可能截断缺参数）。
