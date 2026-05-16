@@ -1,6 +1,6 @@
 ---
 name: wechat-search-weread
-description: 通过微信读书搜索公众号文章。需要 agent-browser + 微信读书登录态。返回标题/公众号/时间/简介/缩略图/文章链接。
+description: 微信公众号文章搜索skill。通过微信读书搜一搜获取最新文章，返回标题/公众号/时间/简介/直链。
 category: social-media
 ---
 
