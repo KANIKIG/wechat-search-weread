@@ -47,13 +47,19 @@ curl -s "http://${WINDOWS_IP}:9223/json/version" | python3 -c "import sys,json; 
 ### 4. 连接 agent-browser
 
 ```bash
-WS_URL=$(curl -s "http://${WINDOWS_IP}:9223/json/version" | python3 -c "import sys,json; print(json.load(sys.stdin)['webSocketDebuggerUrl'])")
-agent-browser --cdp "$WS_URL" goto "https://weread.qq.com/"
+# ⚠️ 不要用 --cdp <WS_URL> 或 --cdp <port>（v0.27.0 下对 WSL 代理均 404）
+# 正确方式：先用 connect 建立连接，后续命令无需 --cdp
+WINDOWS_IP=$(ip route | grep default | awk '{print $3}')
+agent-browser connect "http://${WINDOWS_IP}:9223"
+
+# 连接建立后，直接使用 agent-browser 命令
+agent-browser goto "https://weread.qq.com/"
 ```
 
 ## 注意事项
 
 - **必须用独立 `--user-data-dir`**，否则已有 Edge 实例会拦截启动，`--remote-debugging-port` 被丢弃
-- **用 `goto` 不用 `open`**：`agent-browser --cdp <WS_URL> open` 会尝试 auto-launch 冲突，用 `goto`
+- **用 `connect` 不用 `--cdp`**：`agent-browser --cdp <port>` 在当前版本（0.27.0）下对 WSL 端口代理返回 404。先用 `connect "http://<IP>:9223"`，之后命令不加任何 CDP flag
+- **用 `goto` 不用 `open`**：`agent-browser open` 会尝试 auto-launch 冲突，用 `goto`
 - **端口转发规则重启后持久**，只需运行一次
 - **Windows IP 会变**（DHCP），每次用 `ip route | grep default | awk '{print $3}'` 获取

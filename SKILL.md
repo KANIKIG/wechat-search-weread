@@ -17,7 +17,7 @@ category: social-media
 - [agent-browser](https://github.com/vercel-labs/agent-browser) 已安装
 - 微信读书已登录
 
-> 🖥️ **WSL 用户**：需要额外配置让 agent-browser 连接 Windows CDP 浏览器，详见 [references/wsl-cdp-browser.md](references/wsl-cdp-browser.md)。配置完成后，以下所有 `agent-browser` 命令需加上 `--cdp "$WS_URL"` 前缀（`WS_URL` 为 CDP WebSocket 地址）。
+> 🖥️ **WSL 用户**：需要额外配置让 agent-browser 连接 Windows CDP 浏览器，详见 [references/wsl-cdp-browser.md](references/wsl-cdp-browser.md)。配置完成后，先用 `agent-browser connect "http://<WINDOWS_IP>:9223"` 建立连接，**后续所有 `agent-browser` 命令无需 `--cdp` 前缀**（连接已保持）。
 >
 > 非 WSL 用户直接使用以下命令即可，agent-browser 会自动管理浏览器。
 
@@ -388,15 +388,30 @@ for i, r in enumerate(data[:10]):
 
 ### Step 5: 完成后的清理
 
-**关闭浏览器！**
+**不关浏览器！只清理搜索过程中可能弹出的 mp.weixin.qq.com 标签页，保留微信读书页方便用户继续搜索。**
 
 ```bash
-# 非WSL
-agent-browser close
+WINDOWS_IP=$(ip route | grep default | awk '{print $3}')
 
-# WSL
-/mnt/c/Windows/System32/taskkill.exe /F /IM msedge.exe
+# 关闭所有 mp.weixin.qq.com 标签页（搜索过程中 window.open 可能产生的）
+python3 -c "
+import json, subprocess
+result = subprocess.run(['curl', '-s', 'http://$WINDOWS_IP:9223/json'], capture_output=True, text=True)
+targets = json.loads(result.stdout)
+for t in targets:
+    if t['type'] == 'page' and 'mp.weixin.qq.com' in t.get('url', ''):
+        subprocess.run(['curl', '-s', '-o', '/dev/null', f'http://$WINDOWS_IP:9223/json/close/{t[\"id\"]}'])
+        print(f'Closed: {t[\"url\"][:60]}')
+print('Done — weread page kept open')
+"
+
+# 回到微信读书首页
+agent-browser goto "https://weread.qq.com/"
 ```
+
+> ⚠️ **不要关浏览器！** 用户可能要继续搜索别的关键词，保留登录态和 weread 页面。如果要彻底清理，用户会明确说。
+>
+> 💡 如果用户说"关浏览器"，执行 WSL 用 `/mnt/c/Windows/System32/taskkill.exe /F /IM msedge.exe`，非WSL 用 `agent-browser close`。
 
 ---
 
@@ -426,6 +441,7 @@ DOM 中无 href。点击 `.search_list_item`（卡片 DIV，有 `__vue__` 属性
 
 | 陷阱 | 解决方案 |
 |------|---------|
+| `agent-browser --cdp <WS_URL>` 或 `--cdp <port>` 返回 404（WSL） | agent-browser 0.27.0 下 `--cdp` 对 WSL 端口代理不生效。用 `agent-browser connect "http://<WINDOWS_IP>:9223"` 建立连接，后续命令无需 `--cdp` |
 | agent-browser click 登录按钮不弹窗 | 用 `eval` 触发：`document.querySelectorAll('a').forEach(a => { if (a.textContent.includes('登录')) a.click(); })` |
 | iframe "微信快捷登录" 遮挡二维码 | 直接移除 iframe：`eval` 中 `document.querySelectorAll('iframe').forEach(f => f.remove())` |
 | iframe 内按钮点击无效（跨域） | 不要反复点击 iframe 按钮，直接移除 iframe |
