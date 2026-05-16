@@ -47,7 +47,7 @@ Agent 会自动调用本 Skill 完成搜索。
 
 ## 依赖
 
-- [agent-browser](https://github.com/anthropics/agent-browser) — 浏览器自动化控制
+- [agent-browser](https://github.com/vercel-labs/agent-browser) — 浏览器自动化控制
 
 ## 声明
 
