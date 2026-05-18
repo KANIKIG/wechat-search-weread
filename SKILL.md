@@ -6,6 +6,8 @@ category: social-media
 
 # 微信读书公众号文章搜索
 
+> 📦 [GitHub](https://github.com/KANIKIG/wechat-search-weread) · [ClawHub](https://clawhub.ai/skills/wechat-search-weread)
+
 通过微信读书搜一搜搜索微信公众号文章，返回完整数据（含 `mp.weixin.qq.com` 文章链接）。
 
 ## 触发条件

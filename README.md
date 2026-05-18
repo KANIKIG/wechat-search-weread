@@ -1,5 +1,8 @@
 # wechat-search-weread
 
+[![GitHub](https://img.shields.io/badge/GitHub-KANIKIG%2Fwechat--search--weread-blue?logo=github)](https://github.com/KANIKIG/wechat-search-weread)
+[![ClawHub](https://img.shields.io/badge/ClawHub-wechat--search--weread-orange)](https://clawhub.ai/skills/wechat-search-weread)
+
 通过微信读书搜一搜，搜索微信公众号文章。返回**标题、公众号、发布时间、简介**以及 **`mp.weixin.qq.com` 直链**。
 
 > ⚠️ **本项目只负责搜索和获取文章链接，不包含抓取文章正文内容。**
