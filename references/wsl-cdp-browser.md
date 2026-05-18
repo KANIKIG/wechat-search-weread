@@ -46,15 +46,20 @@ curl -s "http://${WINDOWS_IP}:9223/json/version" | python3 -c "import sys,json; 
 
 ### 4. 连接 agent-browser
 
+> ⚠️ `agent-browser --cdp <WS_URL>` 在 WSL+Edge CDP 环境下不可用（报 `Auto-launch failed: CDP WebSocket connect failed: HTTP error: 404 Not Found`）。**改用两步法：先 `connect`，再正常使用命令。**
+
 ```bash
-# ⚠️ 不要用 --cdp <WS_URL> 或 --cdp <port>（v0.27.0 下对 WSL 代理均 404）
-# 正确方式：先用 connect 建立连接，后续命令无需 --cdp
 WINDOWS_IP=$(ip route | grep default | awk '{print $3}')
+
+# Step 1: connect（建立会话）
 agent-browser connect "http://${WINDOWS_IP}:9223"
 
-# 连接建立后，直接使用 agent-browser 命令
+# Step 2: 正常使用（无需 --cdp 前缀）
 agent-browser goto "https://weread.qq.com/"
+agent-browser snapshot
 ```
+
+> 💡 `connect` 之后所有 agent-browser 命令都不需要 `--cdp` 前缀，会话级保持连接。如果连接断开（如浏览器重启），重新 `connect` 即可。
 
 ## 注意事项
 

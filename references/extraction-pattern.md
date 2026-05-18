@@ -204,6 +204,26 @@ print(f"Done: {sum(1 for a in articles if a['url'])}/{len(articles)} URLs")
 2. **批量 eval 提取（async + await sleep）**：一次 `Runtime.evaluate`（`awaitPromise: true`）完成所有 URL 提取。点击 `.search_list_item`（卡片 DIV），不是 `.article__title-text`。拦截 `window.open`（`return null` 防跳转）→ `.click()` 触发 Vue → `await sleep(50)` 等 Vue 异步 handler → 读 `captured`。N 篇约 N×50ms。**不加 await sleep 会导致 ~40% URL 错位**（`captured` 被下一轮覆写）。
 3. **无需关闭标签页**：`window.open` 被拦截，不真正打开新标签页。
 4. **URL 验证**：提取后用 CDP 浏览器 `goto` 抽查 3-5 条，确认页面加载了文章标题（而非空壳/参数错误）。不要用 curl 验证——curl 可能拿到空壳模板但 HTTP 200。也不要因部分链接「参数错误」反复调整 URL 编码——这是微信服务端行为，与提取无关。
-5. **元数据采集可选**：如果已通过 agent-browser 采集了 `/tmp/arts.json`，可跳过 `extract_articles`，直接用 `extract_filtered`。
+5. **元数据采集可选**：如果已通过 agent-browser 采集了 `/tmp/arts.json`，可跳过 `extract_articles`，直接用 `extract_filtered`。读取文件时注意 `agent-browser eval` 输出被双重引号包裹（`"[{...}]"` 而非 `[{...}]`），需嵌套解析：
+
+```python
+with open('/tmp/arts.json', 'r') as f:
+    raw = f.read().strip()
+
+# Handle agent-browser eval double-quoting: parse repeatedly until we get a list
+all_data = raw
+for _ in range(5):
+    try:
+        all_data = json.loads(all_data)
+    except (json.JSONDecodeError, TypeError):
+        break
+    if not isinstance(all_data, str):
+        break
+
+if isinstance(all_data, str):
+    raise RuntimeError(f"Failed to parse /tmp/arts.json after 5 rounds")
+```
+
+`all_data` 的结构与 `extract_articles()` 返回的一致，可直接喂给 `extract_filtered()` 或 `batch_extract_urls()`。
 6. **`Page.enable`**：保留但不再依赖 CDP 事件监听。
 7. **🚨 URL 防截断**：`extract_all` 后将 `results` 写入 `/tmp/urls.json`。回复用户时用 terminal 中 Python 脚本从 `/tmp/urls.json` 读取并 print Markdown Top 10，复制到回复。**严禁从 execute_code 控制台 print 输出中复制 URL**（可能截断缺参数）。

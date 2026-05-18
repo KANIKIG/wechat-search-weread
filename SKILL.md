@@ -12,6 +12,8 @@ category: social-media
 
 用户需要搜索微信公众号文章，且 Exa 和搜狗方案不满足需求时使用。
 
+> ⚠️ **微信读书官方 Agent API（`/store/search` scope=2/4）不支持公众号文章搜索**（返回 `-2041`）。详见 [references/api-limitations.md](references/api-limitations.md)。本浏览器方案是当前唯一可行的公众号文章搜索途径。
+
 ## 前提条件
 
 - [agent-browser](https://github.com/vercel-labs/agent-browser) 已安装
@@ -383,7 +385,7 @@ for i, r in enumerate(data[:10]):
 ```
 
 **回复用户时只发摘要，不要全文罗列所有文章。完整数据存 `/tmp/urls.json`。**
-- ⚠️ 输出后追加一行提示：`> 💡 如在微信内点链接提示「参数错误」，这是微信的反爬限制（与URL格式无关）。需要的话我可以帮你抓取全文发过来~`
+- ⚠️ 输出后不再需要追加「参数错误」免责提示（该 bug 已修复：根因是 URL 从控制台复制时截断，现已强制从 `/tmp/urls.json` 读取完整 URL）。
 ```
 
 ### Step 5: 完成后的清理
@@ -462,7 +464,8 @@ DOM 中无 href。点击 `.search_list_item`（卡片 DIV，有 `__vue__` 属性
 | 滚动中途停滞（非 15 篇）— 是真上限还是 session 断了？ | **两步确诊**：① 先查「暂无更多内容」返回 `true` = 确定性终止。② 连续 3 轮不变 = plateau 兜底。如果一开始卡 15 才是 session 丢失 |
 | 长滚动（>3 轮）不要用 background 进程 | ❌ `background=true` 的 terminal 可能无声卡住。**超过 3 轮滚动必须用前台 terminal + 长 timeout（600s）** |
 | 批量提取 URL 部分错位（~40%） | Vue 异步调用 `window.open`。**修复：async function + `await sleep(50)` + `awaitPromise: true`** |
-| 部分链接点进去「参数错误」 | ⚠️ 不是提取 bug！某些 mp.weixin.qq.com 文章服务端返回「参数错误」是微信的反爬/权限控制，与 URL 格式无关。**用户反馈时：① 立即用 CDP 浏览器抽查 2-3 条验证链接正常；② 主动 offer 帮用户 CDP 抓取全文内容发过来；③ 不要在链接格式、编码上浪费时间调试** |
+| 部分链接点进去「参数错误」 | ⚠️ **已修复！** 根因是 URL 从 execute_code 控制台输出复制时被截断（缺失 `chksm`/`#rd` 等参数），不是微信反爬。**修复方案：Step 4.4 强制从 `/tmp/urls.json` 读取完整 URL 输出，不从控制台复制。** 如仍出现此问题，检查 URL 是否完整。 |
+| execute_code 中搜索页 page WS 匹配失败（找不到搜索页 target） | 用 `'search.weixin'`（**点号** `.`，不是斜杠 `/`）匹配 URL。实际的搜索页 URL 是 `https://search.weixin.qq.com/cgi-bin/...`。如果用了 `'search/weixin'`（斜杠）会匹配失败。兜底：同时检查 `'userclientjump'` 和 `'weread'` 关键字。 |
 
 ---
 
@@ -471,4 +474,5 @@ DOM 中无 href。点击 `.search_list_item`（卡片 DIV，有 `__vue__` 属性
 - `references/extraction-pattern.md` — 完整可运行的 Python 提取代码模板（eval 批量提取 URL + 元数据采集 + 日期解析），`execute_code` 中直接执行
 - `references/cdp-patterns.md` — CDP 交互模式参考：browser vs page 级别、关键命令、常见错误与调试技巧
 - `references/wsl-cdp-browser.md` — WSL 用户配置 CDP 浏览器连接指南
+- `references/cron-dedup-pattern.md` — 定时搜索去重持久化模式：JSON 存储格式、去重逻辑、输出模板。适用于 cron 作业追踪公众号关键词。
 - `scripts/search_weread.py` — **备选/调试用 Python 脚本**，非主流程。主流程用 agent-browser 命令即可。仅在 agent-browser 完全不可用时考虑此脚本。
