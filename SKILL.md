@@ -48,7 +48,7 @@ with open('/tmp/urls.json') as f:
     data = json.load(f)
 total = len(data)
 succ = sum(1 for r in data if r['url'])
-print(f'**Hermes agent 公众号文章搜索**')
+print(f'**公众号文章搜索结果**')
 print()
 print(f'搜到 {total} 篇 → 提取 {total} 篇 → {succ} 篇有链接（成功率 {100*succ//max(total,1)}%）')
 print()
