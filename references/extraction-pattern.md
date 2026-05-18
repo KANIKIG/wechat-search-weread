@@ -157,15 +157,21 @@ async def extract_all(ws):
     all_indices = list(range(total))
     urls = await batch_extract_urls(ws, all_indices)
     
-    # 3.3 组装结果
+    # 3.3 组装结果（含日期转换）
     url_map = {u['idx']: u['url'] for u in urls}
     results = []
     for a in all_data:
+        raw_date = a.get('date', '')
+        parsed = parse_date(raw_date)
+        if parsed:
+            date_str = parsed.strftime('%Y-%m-%d')
+        else:
+            date_str = raw_date
         results.append({
             'idx': a['idx'],
             'title': a['title'],
             'source': a['source'],
-            'date': a['date'],
+            'date': date_str,
             'url': url_map.get(a['idx'], '')
         })
     

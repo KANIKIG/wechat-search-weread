@@ -15,7 +15,7 @@
     {
       "title": "文章标题",
       "source": "公众号名",
-      "date": "2天前",
+      "date": "2026-05-16",
       "url": "http://mp.weixin.qq.com/s?...",
       "dataId": "12345678&2"
     }

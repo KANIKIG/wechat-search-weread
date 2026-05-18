@@ -165,26 +165,24 @@ rm -f /tmp/weread_qr.png /tmp/qr_url.txt
 ### 3.1 导航到搜索页 + 保持 weread session
 
 ```bash
-# A. agent-browser goto 搜索页
-agent-browser goto \
-  "https://search.weixin.qq.com/cgi-bin/newsearchweb/userclientjump?path=page/search/weread&query=URL编码关键词&platform=pc"
-sleep 8
-agent-browser eval "document.querySelectorAll('.search_list_item').length"
-
-# B. 保持 weread 标签页活跃
-# 获取 browser WS URL（非WSL: agent-browser get cdp-url，WSL: curl http://IP:9223/json/version）
+# A. 先保留登录会话（在导航走之前创建 weread 备份标签页）
+#    获取 browser WS URL（非WSL: agent-browser get cdp-url，WSL: curl http://IP:9223/json/version）
 python3 -c "
-import asyncio, json, websockets
-bw = '<BROWSER_WS_URL>'
+import asyncio, json, subprocess, websockets
+WINDOWS_IP = subprocess.run(['ip', 'route'], capture_output=True, text=True).stdout.split('default via ')[1].split()[0] if 'default via ' in subprocess.run(['ip', 'route'], capture_output=True, text=True).stdout else '172.19.80.1'
+result = subprocess.run(['curl', '-s', f'http://{WINDOWS_IP}:9223/json/version'], capture_output=True, text=True)
+bw = json.loads(result.stdout)['webSocketDebuggerUrl']
+
 async def create():
     async with websockets.connect(bw, max_size=2**24) as ws:
         await ws.send(json.dumps({'id':1,'method':'Target.createTarget','params':{'url':'https://weread.qq.com/'}}))
-        print(await asyncio.wait_for(ws.recv(), timeout=10))
+        resp = await asyncio.wait_for(ws.recv(), timeout=10)
+        print(resp)
 asyncio.run(create())
 "
 sleep 5
 
-# C. agent-browser 重新 goto 搜索页
+# B. 导航到搜索页（原标签页变为搜索页，备份的 weread 标签页保持登录态）
 agent-browser goto \
   "https://search.weixin.qq.com/cgi-bin/newsearchweb/userclientjump?path=page/search/weread&query=URL编码关键词&platform=pc"
 sleep 8
@@ -344,25 +342,35 @@ for i, r in enumerate(data[:10]):
 
 ## Step 5: 完成后的清理
 
-**不关浏览器！** 只清理 mp.weixin.qq.com 标签页，保留微信读书页。
+**不关浏览器！** 回到微信读书登录页，关闭搜索页等所有多余标签页，只保留一个 weread 页面。
 
 ```bash
 WINDOWS_IP=$(ip route | grep default | awk '{print $3}')
 
-# 关闭所有 mp.weixin.qq.com 标签页
+# 先回到微信读书首页（agent-browser 标签页变为 weread）
+agent-browser goto "https://weread.qq.com/"
+sleep 5
+
+# 关闭其他所有标签页（搜索页 + mp.weixin.qq.com + 备份 weread），只保留当前 weread
 python3 -c "
 import json, subprocess
 result = subprocess.run(['curl', '-s', 'http://$WINDOWS_IP:9223/json'], capture_output=True, text=True)
 targets = json.loads(result.stdout)
+# 第一轮：关掉所有非 weread 页面
 for t in targets:
-    if t['type'] == 'page' and 'mp.weixin.qq.com' in t.get('url', ''):
+    if t['type'] == 'page' and 'weread.qq.com' not in t.get('url', ''):
         subprocess.run(['curl', '-s', '-o', '/dev/null', f'http://$WINDOWS_IP:9223/json/close/{t[\"id\"]}'])
-        print(f'Closed: {t[\"url\"][:60]}')
-print('Done — weread page kept open')
+        print(f'Closed: {t[\"url\"][:80]}')
+# 第二轮：如果还有多个 weread 页面，把多余的也关了
+result = subprocess.run(['curl', '-s', 'http://$WINDOWS_IP:9223/json'], capture_output=True, text=True)
+targets = json.loads(result.stdout)
+weread_tabs = [t for t in targets if t['type'] == 'page' and 'weread.qq.com' in t.get('url', '')]
+if len(weread_tabs) > 1:
+    for t in weread_tabs[1:]:  # 保留第一个，关掉其余的
+        subprocess.run(['curl', '-s', '-o', '/dev/null', f'http://$WINDOWS_IP:9223/json/close/{t[\"id\"]}'])
+        print(f'Closed duplicate weread: {t[\"id\"]}')
+print('Done — only weread login page remains')
 "
-
-# 回到微信读书首页
-agent-browser goto "https://weread.qq.com/"
 ```
 
 ---

@@ -26,9 +26,9 @@ category: social-media
 |------|------|
 | **1. 启动浏览器** | 非WSL自动；WSL 参考 [wsl-cdp-browser.md](references/wsl-cdp-browser.md) |
 | **2. 登录** | QR 扫码。首次 eval 触发的 QR 大概率过期 → 必须关闭弹窗→重新触发→提取（单 terminal 调用一气呵成）。**登录成功后删除 `/tmp/weread_qr.png`** |
-| **3. 搜索+滚动** | goto 搜索页 → 保持 weread session → eval 滚动到「暂无更多内容」（封顶500条） |
+| **3. 搜索+滚动** | 先备份 weread 标签页（保持登录态）→ goto 搜索页 → eval 滚动到「暂无更多内容」（封顶500条） |
 | **4. 提取URL** | execute_code 中 Python + websockets 连 page CDP → 批量点击 → 拦截 window.open → 写入 `/tmp/urls.json` |
-| **5. 清理** | 关 mp.weixin.qq.com 标签页，保留 weread 页面 |
+| **5. 清理** | 回到微信读书首页 → 关闭搜索页、mp 链接等所有多余标签页，只保留一个 weread 页面 |
 
 > 🔴 **全部详细命令见 [references/detailed-workflow.md](references/detailed-workflow.md)**（含每个 step 的完整 bash 代码）。
 
