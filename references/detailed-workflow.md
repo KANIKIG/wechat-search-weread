@@ -263,18 +263,49 @@ agent-browser eval "
 
 ```python
 def parse_date(date_str):
+    """解析相对/绝对时间字符串 → datetime。支持：X年前/个月前/周前/天前/小时前/分钟前、YYYY-MM-DD、YYYY/M/D、M月D日、M/D、M-D"""
     now = datetime.now()
+    if not date_str:
+        return None
+    if '年前' in date_str:
+        m = re.search(r'(\d+)', date_str)
+        return now - timedelta(days=int(m.group(1)) * 365) if m else None
+    if '个月前' in date_str:
+        m = re.search(r'(\d+)', date_str)
+        return now - timedelta(days=int(m.group(1)) * 30) if m else None
+    if '周前' in date_str:
+        m = re.search(r'(\d+)', date_str)
+        return now - timedelta(weeks=int(m.group(1))) if m else None
+    if '天前' in date_str:
+        m = re.search(r'(\d+)', date_str)
+        return now - timedelta(days=int(m.group(1))) if m else None
     if '小时前' in date_str:
-        h = int(re.search(r'(\d+)', date_str).group(1))
-        return now - timedelta(hours=h)
-    elif '分钟前' in date_str:
-        m = int(re.search(r'(\d+)', date_str).group(1))
-        return now - timedelta(minutes=m)
-    elif '天前' in date_str:
-        d = int(re.search(r'(\d+)', date_str).group(1))
-        return now - timedelta(days=d)
-    elif re.match(r'\d{4}-\d{2}-\d{2}', date_str):
+        m = re.search(r'(\d+)', date_str)
+        return now - timedelta(hours=int(m.group(1))) if m else None
+    if '分钟前' in date_str:
+        m = re.search(r'(\d+)', date_str)
+        return now - timedelta(minutes=int(m.group(1))) if m else None
+    if re.match(r'\d{4}-\d{2}-\d{2}', date_str):
         return datetime.strptime(date_str[:10], '%Y-%m-%d')
+    if re.match(r'\d{4}/\d{1,2}/\d{1,2}', date_str):
+        parts = date_str.split('/')
+        return datetime(int(parts[0]), int(parts[1]), int(parts[2]))
+    if re.match(r'\d{1,2}/\d{1,2}', date_str):
+        parts = date_str.split('/')
+        month, day = int(parts[0]), int(parts[1])
+        dt = datetime(now.year, month, day)
+        return dt if dt <= now else datetime(now.year - 1, month, day)
+    if re.match(r'\d{1,2}月\d{1,2}日', date_str):
+        m = re.match(r'(\d{1,2})月(\d{1,2})日', date_str)
+        if m:
+            month, day = int(m.group(1)), int(m.group(2))
+            dt = datetime(now.year, month, day)
+            return dt if dt <= now else datetime(now.year - 1, month, day)
+    if re.match(r'\d{1,2}-\d{1,2}', date_str):
+        parts = date_str.split('-')
+        month, day = int(parts[0]), int(parts[1])
+        dt = datetime(now.year, month, day)
+        return dt if dt <= now else datetime(now.year - 1, month, day)
     return None
 ```
 
@@ -399,3 +430,4 @@ print('Done — only weread login page remains')
 | 批量提取 URL 部分错位（~40%） | async + `await sleep(50)` + `awaitPromise: true` |
 | 部分链接点进去「参数错误」 | ✅ 已修复：从 `/tmp/urls.json` 读完整 URL |
 | execute_code 中搜索页 page WS 匹配失败 | 用 `'search.weixin'`（点号，不是斜杠）匹配 URL |
+| parse_date 不识别「X个月前」「X年前」「X月X日」「2025/3/24」等格式 | 使用 extraction-pattern.md 中的完整 parse_date（已覆盖所有已知格式） |

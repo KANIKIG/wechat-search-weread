@@ -123,21 +123,63 @@ def close_mp_weixin_tabs():
 
 
 def parse_date(date_str):
-    """解析相对时间字符串 → datetime"""
+    """解析相对/绝对时间字符串 → datetime (返回 None 表示无法解析)"""
     now = datetime.now()
     if not date_str:
         return None
-    if '小时前' in date_str:
-        h = int(re.search(r'(\d+)', date_str).group(1))
-        return now - timedelta(hours=h)
-    elif '分钟前' in date_str:
-        m = int(re.search(r'(\d+)', date_str).group(1))
-        return now - timedelta(minutes=m)
+    # Relative: X年前, X个月前, X周前, X天前, X小时前, X分钟前
+    if '年前' in date_str:
+        m = re.search(r'(\d+)', date_str)
+        if m:
+            y = int(m.group(1))
+            return now - timedelta(days=y * 365)
+    elif '个月前' in date_str:
+        m = re.search(r'(\d+)', date_str)
+        if m:
+            months = int(m.group(1))
+            return now - timedelta(days=months * 30)
+    elif '周前' in date_str:
+        m = re.search(r'(\d+)', date_str)
+        if m:
+            w = int(m.group(1))
+            return now - timedelta(weeks=w)
     elif '天前' in date_str:
-        d = int(re.search(r'(\d+)', date_str).group(1))
-        return now - timedelta(days=d)
+        m = re.search(r'(\d+)', date_str)
+        if m:
+            d = int(m.group(1))
+            return now - timedelta(days=d)
+    elif '小时前' in date_str:
+        m = re.search(r'(\d+)', date_str)
+        if m:
+            h = int(m.group(1))
+            return now - timedelta(hours=h)
+    elif '分钟前' in date_str:
+        m = re.search(r'(\d+)', date_str)
+        if m:
+            mins = int(m.group(1))
+            return now - timedelta(minutes=mins)
+    # Absolute: YYYY-MM-DD, YYYY/M/D, YYYY/M/D, M月D日, M-D
     elif re.match(r'\d{4}-\d{2}-\d{2}', date_str):
         return datetime.strptime(date_str[:10], '%Y-%m-%d')
+    elif re.match(r'\d{4}/\d{1,2}/\d{1,2}', date_str):
+        parts = date_str.split('/')
+        return datetime(int(parts[0]), int(parts[1]), int(parts[2]))
+    elif re.match(r'\d{1,2}/\d{1,2}', date_str):
+        parts = date_str.split('/')
+        month, day = int(parts[0]), int(parts[1])
+        dt = datetime(now.year, month, day)
+        return dt if dt <= now else datetime(now.year - 1, month, day)
+    elif re.match(r'\d{1,2}月\d{1,2}日', date_str):
+        m = re.match(r'(\d{1,2})月(\d{1,2})日', date_str)
+        if m:
+            month, day = int(m.group(1)), int(m.group(2))
+            dt = datetime(now.year, month, day)
+            return dt if dt <= now else datetime(now.year - 1, month, day)
+    elif re.match(r'\d{1,2}-\d{1,2}', date_str):
+        parts = date_str.split('-')
+        month, day = int(parts[0]), int(parts[1])
+        dt = datetime(now.year, month, day)
+        return dt if dt <= now else datetime(now.year - 1, month, day)
     return None
 
 
