@@ -181,7 +181,9 @@ async def create():
 asyncio.run(create())
 "
 sleep 5
+```
 
+> 💡 **简易替代**：当 CDP websockets 路径被阻断（cron 禁用 execute_code、安全扫描器拦截 heredoc）时，可用 `agent-browser open "https://weread.qq.com/"` 替代上面的 Python 代码创建备份标签页。效果相同，更简单。
 # B. 导航到搜索页（原标签页变为搜索页，备份的 weread 标签页保持登录态）
 agent-browser goto \
   "https://search.weixin.qq.com/cgi-bin/newsearchweb/userclientjump?path=page/search/weread&query=URL编码关键词&platform=pc"
@@ -192,12 +194,14 @@ agent-browser eval "document.querySelectorAll('.search_list_item').length"
 
 ### 3.2 滚动加载（默认滚到「暂无更多内容」，500 条封顶）
 
+> ⚠️ **Edge CDP bug（2026-06）：`window.scrollTo()` / `scroll down` / `PageDown` 会改变 `scrollY` 但不会触发 `scroll` 事件。** 搜索页的无限滚动依赖 scroll 事件触发 XHR。必须每次滚动后手动 `window.dispatchEvent(new Event('scroll'))` 才能触发加载。
+
 ```bash
-# 每轮 = 3 次 scrollTo + 2s 间隔 + 3s 渲染等待。每轮新增 ~45 篇。
+# 每轮 = 3 次 [scrollTo + dispatchEvent] + 2s 间隔 + 3s 渲染等待。每轮新增 ~45 篇。
 PREV=""; PREV2=""
 for r in $(seq 1 20); do
   for j in 1 2 3; do
-    agent-browser eval "window.scrollTo(0, document.body.scrollHeight)" > /dev/null 2>&1
+    agent-browser eval "window.scrollTo(0, document.body.scrollHeight); window.dispatchEvent(new Event('scroll'));" > /dev/null 2>&1
     sleep 2
   done
   sleep 3
@@ -225,7 +229,7 @@ done
 
 > 典型增长曲线：R1→60, R2→105, R3→150, R4→195, R5→240, R6→258（然后持平）。
 
-如果两轮后数量不变（始终 15 篇）：① weread session 丢失 ② 用了 Python page WS 做滚动。
+如果两轮后数量不变（始终 15 篇）：① weread session 丢失 ② 用了 Python page WS 做滚动 ③ **Edge CDP 下 scroll 事件不触发**（见 [edge-cdp-scroll-issue.md](edge-cdp-scroll-issue.md)）——换用 Chrome CDP。
 
 ---
 
@@ -410,14 +414,17 @@ print('Done — only weread login page remains')
 
 | 陷阱 | 解决方案 |
 |------|---------|
+| Edge CDP 滚动不触发 scroll 事件（scrollY变但事件0） | 每次 scrollTo 后手动 `dispatchEvent(new Event('scroll'))` |
 | `agent-browser --cdp <WS_URL>` 返回 404（WSL） | 用 `agent-browser connect "http://<IP>:9223"` 建立连接 |
 | agent-browser click 登录按钮不弹窗 | 用 eval 触发 |
 | iframe "微信快捷登录" 遮挡二维码 | eval 中移除 iframe |
 | iframe 内按钮点击无效（跨域） | 直接移除 iframe |
 | agent-browser eval 输出被双重引号包裹 | `json.loads(json.loads(raw))`（仅 JSON；简单字符串只用一层） |
 | 链接获取效率低 | 用 `batch_extract_urls()` 一次 eval 完成全部提取 |
+| 滚动永远卡在 15 篇（Edge CDP scroll 事件不触发） | **Edge CDP 已知缺陷**：scrollTo/pageDown/scrollIntoView 都改变 scrollY 但从不触发 scroll 事件 → 搜一搜无限滚动完全失效。换用 Chrome CDP。详见 [edge-cdp-scroll-issue.md](edge-cdp-scroll-issue.md) |
 | 滚动永远卡在 15 篇（Python page WS） | 只有 agent-browser eval 能触发 XHR |
 | 滚动永远卡在 15 篇（session 丢失） | 保持 weread.qq.com 标签页活跃 |
+| 页面显示「加载中」但实际未加载 | 搜索页 body 中「加载中」字符串是**静态模板文本**，不是实时加载指示器。验证滚动是否工作的唯一标准是 `search_list_item` 数量变化。 |
 | 二维码过期 | 全流程单 terminal 调用，关闭→重新触发→提取 |
 | QR 流程拆成多个 terminal 调用 | ❌ 大忌 |
 | QR 提取后做验证浪费有效期 | ❌ 提取成功后立刻发 MEDIA |

@@ -21,6 +21,7 @@ category: social-media
 - [agent-browser](https://github.com/vercel-labs/agent-browser) 已安装
 - 微信读书已登录（首次需扫码）
 - WSL 用户需 CDP 端口转发（见 [wsl-cdp-browser.md](references/wsl-cdp-browser.md)），用 `agent-browser connect "http://<IP>:9223"` 建连后无需 `--cdp` flag
+- 🔴 **推荐 Chrome CDP 而非 Edge**：Edge CDP 存在 scroll 事件不触发的缺陷，导致无限滚动完全失效（详见 [edge-cdp-scroll-issue.md](references/edge-cdp-scroll-issue.md)）。WSL 下 Chrome 启动：`"/mnt/c/Program Files/Google/Chrome/Application/chrome.exe" --remote-debugging-port=9222 --user-data-dir=C:/Users/gdc3489/AppData/Local/Temp/chrome_debug --no-first-run about:blank`
 
 ## 流程概要（5 步，缺一不可）
 
@@ -45,7 +46,19 @@ category: social-media
 
 搜索完成后，**直接以最终回复输出结果**，系统会自动投递到当前对话。
 
-输出格式（Step 4.4）：搜到 X 篇 → 提取 Y 篇 → Z 篇有链接（成功率 N%）+ Top 10 列表，完整数据存 `/tmp/urls.json`。
+输出格式（Step 4.4）：搜到 X 篇 → 提取 Y 篇 → Z 篇有链接（成功率 N%）+ Top 10 列表，完整数据存 /tmp/urls.json。
+
+🔴 **链接必须从 `/tmp/urls.json` 读取，严禁从控制台输出或记忆中复制 URL**。控制台输出会截断长 URL（丢失 `chksm` 或 `#rd`），导致微信打开显示"参数错误"。正确做法：
+
+```bash
+python3 -c "
+import json
+with open('/tmp/urls.json') as f:
+    data = json.load(f)
+for i, r in enumerate(data[:10]):
+    print(f\"{i+1}. [{r['title']}]({r['url']}) — {r.get('source','')} · {r.get('date','')}\")
+"
+```
 
 ## References
 
@@ -55,4 +68,6 @@ category: social-media
 - `references/wsl-cdp-browser.md` — WSL 配置指南
 - `references/api-limitations.md` — 微信读书 API 限制说明
 - `references/llm-filter-pattern.md` — LLM 语义筛选模式：搜索噪音过滤（替代关键词黑名单）
+- `references/topology-optimization-filter.md` — 拓扑优化领域专用筛选模式：已验证的排除正则、陷阱、持久化格式
+- `references/edge-cdp-scroll-issue.md` — Edge CDP scroll 事件不触发问题：诊断、验证方法、Chrome 替代方案
 - `scripts/search_weread.py` — 备选/调试脚本（非主流程）
