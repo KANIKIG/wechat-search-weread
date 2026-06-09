@@ -1,25 +1,34 @@
 # WSL 环境下连接 Windows CDP 浏览器
 
-如果你是 WSL 用户，需要通过以下步骤让 agent-browser 连接到 Windows 上的 Edge 浏览器。
+WSL 用户需要通过以下步骤让 agent-browser 连接到 Windows 上的 CDP 浏览器（Edge 或 Chrome）。
 
 ## 为什么需要这个
 
-WSL2 有独立的网络命名空间，Windows 上的 Chrome/Edge CDP 默认绑定 `127.0.0.1`，WSL 无法直接访问。`--remote-debugging-address=0.0.0.0` 在 Chrome/Edge 上均无效。
+WSL2 有独立的网络命名空间，Windows 上的 CDP 默认绑定 `127.0.0.1`，WSL 无法直接访问。
 
 ## 步骤
 
-### 1. 启动 Edge CDP 浏览器
+### 1. 启动 CDP 浏览器
 
+**Edge**（推荐，Windows 自带）：
 ```bash
-# 先关掉已有的 Edge
+# 先关掉已有的实例
 /mnt/c/Windows/System32/taskkill.exe /F /IM msedge.exe 2>/dev/null; sleep 2
 
-# 用独立 user-data-dir 启动（否则会被已有 Edge 实例拦截）
+# 用独立 user-data-dir 启动
 "/mnt/c/Program Files (x86)/Microsoft/Edge/Application/msedge.exe" \
   --remote-debugging-port=9222 \
   --user-data-dir="C:/Users/gdc3489/AppData/Local/Temp/edge_debug" \
   --no-first-run --no-default-browser-check about:blank &
+sleep 5
+```
 
+**Chrome**（备选，需自行安装）：
+```bash
+"/mnt/c/Program Files/Google/Chrome/Application/chrome.exe" \
+  --remote-debugging-port=9222 \
+  --user-data-dir=C:/Users/gdc3489/AppData/Local/Temp/chrome_debug \
+  --no-first-run about:blank &
 sleep 5
 ```
 
@@ -41,12 +50,12 @@ sleep 5
 ```bash
 WINDOWS_IP=$(ip route | grep default | awk '{print $3}')
 curl -s "http://${WINDOWS_IP}:9223/json/version" | python3 -c "import sys,json; print(json.load(sys.stdin).get('Browser','FAIL'))"
-# 输出：Edge/xxx 即成功
+# 输出浏览器名称即成功
 ```
 
 ### 4. 连接 agent-browser
 
-> ⚠️ `agent-browser --cdp <WS_URL>` 在 WSL+Edge CDP 环境下不可用（报 `Auto-launch failed: CDP WebSocket connect failed: HTTP error: 404 Not Found`）。**改用两步法：先 `connect`，再正常使用命令。**
+> ⚠️ `agent-browser --cdp <WS_URL>` 在 WSL 端口代理环境下不可用（报 404）。**改用两步法：先 `connect`，再正常使用命令。**
 
 ```bash
 WINDOWS_IP=$(ip route | grep default | awk '{print $3}')
@@ -63,7 +72,7 @@ agent-browser snapshot
 
 ## 注意事项
 
-- **必须用独立 `--user-data-dir`**，否则已有 Edge 实例会拦截启动，`--remote-debugging-port` 被丢弃
+- **必须用独立 `--user-data-dir`**，否则已有浏览器实例会拦截启动
 - **用 `connect` 不用 `--cdp`**：`agent-browser --cdp <port>` 在当前版本（0.27.0）下对 WSL 端口代理返回 404。先用 `connect "http://<IP>:9223"`，之后命令不加任何 CDP flag
 - **用 `goto` 不用 `open`**：`agent-browser open` 会尝试 auto-launch 冲突，用 `goto`
 - **端口转发规则重启后持久**，只需运行一次
