@@ -22,16 +22,17 @@ category: social-media
 - 微信读书已登录（首次需扫码）
 - WSL 用户需 CDP 端口转发（见 [wsl-cdp-browser.md](references/wsl-cdp-browser.md)），用 `agent-browser connect "http://<IP>:9223"` 建连后无需 `--cdp` flag
 - **浏览器**：有 Edge 用 Edge，没有就 Chrome。CDP scroll 事件不触发时用 `window.dispatchEvent(new Event('scroll'))` 解决（见 [detailed-workflow.md](references/detailed-workflow.md) Step 3.2）。
+- **中间文件目录**：当前工作区根目录下的 `.weread-tmp/`（仓库 `.gitignore` 已忽略）。首次使用先执行 `mkdir -p .weread-tmp`。任务结束后删除本次生成的文件。
 
 ## 流程概要（5 步，缺一不可）
 
 | 步骤 | 要点 |
 |------|------|
 | **1. 启动浏览器** | 非WSL自动；WSL 参考 [wsl-cdp-browser.md](references/wsl-cdp-browser.md) |
-| **2. 登录** | QR 扫码。首次 eval 触发的 QR 大概率过期 → 必须关闭弹窗→重新触发→提取（单 terminal 调用一气呵成）。**登录成功后删除 `/tmp/weread_qr.png`** |
+| **2. 登录** | QR 扫码。首次 eval 触发的 QR 大概率过期 → 必须关闭弹窗→重新触发→提取（单 terminal 调用一气呵成）。**登录成功后删除 `.weread-tmp/weread_qr.png`** |
 | **3. 搜索+滚动** | 先备份 weread 标签页（保持登录态）→ goto 搜索页 → eval 滚动到「暂无更多内容」（封顶500条） |
 | **4. 提取URL** | ① ≤50 篇：agent-browser eval 同步提取（最简单）；② >50 篇：agent-browser eval 分批提取（每批 50，已验证 246 篇 100% 成功）；③ execute_code + websockets 备选（有超时风险）。详见 [extraction-pattern.md](references/extraction-pattern.md) |
-| **5. 清理** | 回到微信读书首页 → 关闭搜索页、mp 链接等所有多余标签页，只保留一个 weread 页面 |
+| **5. 清理** | 只关闭本次 skill 打开的标签页（搜索页、mp 链接、备份的 weread 页），按 `agent-browser tab close <tabId>` 关闭，不按 URL 批量关闭 |
 
 > 🔴 **全部详细命令、代码块、陷阱表见 [references/detailed-workflow.md](references/detailed-workflow.md)**。
 
@@ -46,14 +47,14 @@ category: social-media
 
 搜索完成后，**直接以最终回复输出结果**，系统会自动投递到当前对话。
 
-输出格式（Step 4.4）：搜到 X 篇 → 提取 Y 篇 → Z 篇有链接（成功率 N%）+ Top 10 列表，完整数据存 /tmp/urls.json。
+输出格式（Step 4.4）：搜到 X 篇 → 提取 Y 篇 → Z 篇有链接（成功率 N%）+ Top 10 列表，完整数据存 .weread-tmp/urls.json。
 
-🔴 **链接必须从 `/tmp/urls.json` 读取，严禁从控制台输出或记忆中复制 URL**。控制台输出会截断长 URL（丢失 `chksm` 或 `#rd`），导致微信打开显示"参数错误"。正确做法：
+🔴 **链接必须从 `.weread-tmp/urls.json` 读取，严禁从控制台输出或记忆中复制 URL**。控制台输出会截断长 URL（丢失 `chksm` 或 `#rd`），导致微信打开显示"参数错误"。正确做法：
 
 ```bash
 python3 -c "
 import json
-with open('/tmp/urls.json') as f:
+with open('.weread-tmp/urls.json') as f:
     data = json.load(f)
 for i, r in enumerate(data[:10]):
     print(f\"{i+1}. [{r['title']}]({r['url']}) — {r.get('source','')} · {r.get('date','')}\")

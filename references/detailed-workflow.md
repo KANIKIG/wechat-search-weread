@@ -24,41 +24,6 @@
 
 ## Step 2: 登录微信读书（统一用扫码！）
 
-### 2.0 清除旧登录态（可选，cookie 残留时）
-
-微信读书的认证 cookie 是 httpOnly 的，需用 CDP `Storage.clearCookies`（**page 级别** WebSocket）：
-
-```python
-import asyncio, json, subprocess, websockets
-
-# 获取 CDP browser WebSocket URL
-# 非WSL: result = subprocess.run(['agent-browser', 'get', 'cdp-url'], capture_output=True, text=True)
-# WSL:   result = subprocess.run(['curl', '-s', 'http://WINDOWS_IP:9223/json/version'], capture_output=True, text=True)
-#         version['webSocketDebuggerUrl']
-
-# 获取 weread 页面的 page-level WS URL
-result = subprocess.run(['curl', '-s', '<browser_ws_url替换为/json>'],
-                       capture_output=True, text=True)
-targets = json.loads(result.stdout)
-weread_ws = None
-for t in targets:
-    if t['type'] == 'page' and 'weread' in t.get('url', ''):
-        weread_ws = t['webSocketDebuggerUrl']
-        break
-
-async def clear():
-    async with websockets.connect(weread_ws, max_size=2**24) as ws:
-        await ws.send(json.dumps({'id': 1, 'method': 'Storage.clearCookies', 'params': {}}))
-        resp = await asyncio.wait_for(ws.recv(), timeout=5)
-        print(resp)
-
-asyncio.run(clear())
-```
-
-> `Network.clearBrowserCookies` 在 CDP 可能返回 `-32601`，只用 `Storage.clearCookies`。
-
-清除后 reload 页面确认"登录"链接出现。
-
 ### 2.1 导航并点击登录
 
 ```bash
@@ -108,12 +73,12 @@ agent-browser eval "
     if (img.width > 100 && img.height > 100) return img.src;
   }
   return '';
-})()" > /tmp/qr_url.txt
+})()" > .weread-tmp/qr_url.txt
 
 # Step E: 解析并下载 QR → 立即发码给用户
 python3 -c "
 import json, base64, os
-with open('/tmp/qr_url.txt') as f:
+with open('.weread-tmp/qr_url.txt') as f:
     raw = f.read().strip()
 src = json.loads(raw)
 if not src:
@@ -122,13 +87,13 @@ if not src:
 if src.startswith('data:image'):
     b64 = src.split(',', 1)[1]
     b64 += '=' * (4 - len(b64) % 4) if len(b64) % 4 else ''
-    with open('/tmp/weread_qr.png', 'wb') as f:
+    with open('.weread-tmp/weread_qr.png', 'wb') as f:
         f.write(base64.b64decode(b64))
 else:
-    import subprocess; subprocess.run(['curl', '-s', '-o', '/tmp/weread_qr.png', src])
-print(f'QR OK: {os.path.getsize(\"/tmp/weread_qr.png\")} bytes')
+    import subprocess; subprocess.run(['curl', '-s', '-o', '.weread-tmp/weread_qr.png', src])
+print(f'QR OK: {os.path.getsize(\".weread-tmp/weread_qr.png\")} bytes')
 "
-# 整个 block 结束后立刻在回复里发 MEDIA:/tmp/weread_qr.png
+# 整个 block 结束后立刻在回复里发 MEDIA:.weread-tmp/weread_qr.png
 ```
 
 **如果 QR 仍失效（极少情况）：** 重复 Step B-D。如果登录弹窗完全消失，重新 goto + 触发：
@@ -152,7 +117,7 @@ agent-browser snapshot | grep -i "我的书架\|继续阅读"
 **登录成功后清理临时文件：**
 
 ```bash
-rm -f /tmp/weread_qr.png /tmp/qr_url.txt
+rm -f .weread-tmp/weread_qr.png .weread-tmp/qr_url.txt
 ```
 
 ---
@@ -169,7 +134,7 @@ rm -f /tmp/weread_qr.png /tmp/qr_url.txt
 #    获取 browser WS URL（非WSL: agent-browser get cdp-url，WSL: curl http://IP:9223/json/version）
 python3 -c "
 import asyncio, json, subprocess, websockets
-WINDOWS_IP = subprocess.run(['ip', 'route'], capture_output=True, text=True).stdout.split('default via ')[1].split()[0] if 'default via ' in subprocess.run(['ip', 'route'], capture_output=True, text=True).stdout else '172.19.80.1'
+WINDOWS_IP = subprocess.run(['ip', 'route'], capture_output=True, text=True, check=True).stdout.split('default via ')[1].split()[0]
 result = subprocess.run(['curl', '-s', f'http://{WINDOWS_IP}:9223/json/version'], capture_output=True, text=True)
 bw = json.loads(result.stdout)['webSocketDebuggerUrl']
 
@@ -181,9 +146,6 @@ async def create():
 asyncio.run(create())
 "
 sleep 5
-```
-
-> 💡 **简易替代**：当 CDP websockets 路径被阻断（cron 禁用 execute_code、安全扫描器拦截 heredoc）时，可用 `agent-browser open "https://weread.qq.com/"` 替代上面的 Python 代码创建备份标签页。效果相同，更简单。
 # B. 导航到搜索页（原标签页变为搜索页，备份的 weread 标签页保持登录态）
 agent-browser goto \
   "https://search.weixin.qq.com/cgi-bin/newsearchweb/userclientjump?path=page/search/weread&query=URL编码关键词&platform=pc"
@@ -191,6 +153,8 @@ sleep 8
 agent-browser eval "document.querySelectorAll('.search_list_item').length"
 # → 初始 15 篇
 ```
+
+> 💡 **简易替代**：当 CDP websockets 路径被阻断（cron 禁用 execute_code、安全扫描器拦截 heredoc）时，可用 `agent-browser open "https://weread.qq.com/"` 替代上面代码块中的 Python 部分创建备份标签页。效果相同，更简单。
 
 ### 3.2 滚动加载（默认滚到「暂无更多内容」，500 条封顶）
 
@@ -256,7 +220,7 @@ agent-browser eval "
         });
     });
     return JSON.stringify(arts);
-})()" > /tmp/arts.json
+})()" > .weread-tmp/arts.json
 ```
 
 > `agent-browser eval` 返回的字符串被双重引号包裹（`"[...]"`），解析需 `json.loads(json.loads(raw))`。
@@ -350,12 +314,12 @@ def parse_date(date_str):
 
 ### 4.4 输出格式
 
-**严禁从 execute_code 控制台输出复制 URL。** 强制从 `/tmp/urls.json` 读取：
+**严禁从 execute_code 控制台输出复制 URL。** 强制从 `.weread-tmp/urls.json` 读取：
 
 ```bash
 python3 -c "
 import json
-with open('/tmp/urls.json') as f:
+with open('.weread-tmp/urls.json') as f:
     data = json.load(f)
 total = len(data)
 succ = sum(1 for r in data if r['url'])
@@ -371,42 +335,22 @@ for i, r in enumerate(data[:10]):
 "
 ```
 
-回复用户时只发摘要，完整数据存 `/tmp/urls.json`。
+回复用户时只发摘要，完整数据存 `.weread-tmp/urls.json`。
 
 ---
 
 ## Step 5: 完成后的清理
 
-**不关浏览器！** 回到微信读书登录页，关闭搜索页等所有多余标签页，只保留一个 weread 页面。
+**不关浏览器！** 只关闭本次 skill 打开的标签页（搜索页、mp.weixin.qq.com 页面、备份的 weread 页面），保留浏览器中其他已有标签页。
 
 ```bash
-WINDOWS_IP=$(ip route | grep default | awk '{print $3}')
-
-# 先回到微信读书首页（agent-browser 标签页变为 weread）
-agent-browser goto "https://weread.qq.com/"
-sleep 5
-
-# 关闭其他所有标签页（搜索页 + mp.weixin.qq.com + 备份 weread），只保留当前 weread
-python3 -c "
-import json, subprocess
-result = subprocess.run(['curl', '-s', 'http://$WINDOWS_IP:9223/json'], capture_output=True, text=True)
-targets = json.loads(result.stdout)
-# 第一轮：关掉所有非 weread 页面
-for t in targets:
-    if t['type'] == 'page' and 'weread.qq.com' not in t.get('url', ''):
-        subprocess.run(['curl', '-s', '-o', '/dev/null', f'http://$WINDOWS_IP:9223/json/close/{t[\"id\"]}'])
-        print(f'Closed: {t[\"url\"][:80]}')
-# 第二轮：如果还有多个 weread 页面，把多余的也关了
-result = subprocess.run(['curl', '-s', 'http://$WINDOWS_IP:9223/json'], capture_output=True, text=True)
-targets = json.loads(result.stdout)
-weread_tabs = [t for t in targets if t['type'] == 'page' and 'weread.qq.com' in t.get('url', '')]
-if len(weread_tabs) > 1:
-    for t in weread_tabs[1:]:  # 保留第一个，关掉其余的
-        subprocess.run(['curl', '-s', '-o', '/dev/null', f'http://$WINDOWS_IP:9223/json/close/{t[\"id\"]}'])
-        print(f'Closed duplicate weread: {t[\"id\"]}')
-print('Done — only weread login page remains')
-"
+# 列出标签页，记下本次打开的标签页引用（tabId 或 label）
+agent-browser tab list
+# 逐个关闭本次打开的标签页，例如：
+agent-browser tab close <tabId>
 ```
+
+> 🔴 不要按 URL 关闭标签页：浏览器中可能有其他站点的已登录标签页。
 
 ---
 
@@ -429,12 +373,10 @@ print('Done — only weread login page remains')
 | QR 流程拆成多个 terminal 调用 | ❌ 大忌 |
 | QR 提取后做验证浪费有效期 | ❌ 提取成功后立刻发 MEDIA |
 | 二维码 src 是 data: URI 非 HTTP URL | Python base64 解码，补 padding |
-| httpOnly cookie 清不掉 | CDP `Storage.clearCookies` |
-| `Network.clearBrowserCookies` 返回 -32601 | 用 `Storage.clearCookies` |
-| 搜一搜页面卡「加载中...」 | 清 cookie → 重启浏览器 → 重新扫码 |
+| 搜一搜页面卡「加载中...」 | 重新扫码登录（不重启复用的 Edge，避免影响其他站点会话） |
 | 滚动中途停滞（非 15 篇） | 查「暂无更多内容」= 真上限；3 轮不变 = plateau 兜底 |
 | 长滚动不要用 background 进程 | 前台 terminal + 长 timeout（600s） |
 | 批量提取 URL 部分错位（~40%） | async + `await sleep(50)` + `awaitPromise: true` |
-| 部分链接点进去「参数错误」 | ✅ 已修复：从 `/tmp/urls.json` 读完整 URL |
+| 部分链接点进去「参数错误」 | ✅ 已修复：从 `.weread-tmp/urls.json` 读完整 URL |
 | execute_code websockets `recv()` 120s 超时（>50 篇） | 用 agent-browser eval 分批提取（每批 50），已验证 246 篇 100% 成功。不要用 execute_code + websockets 做大批量 URL 提取。 |
 | parse_date 不识别「X个月前」「X年前」「X月X日」「2025/3/24」等格式 | 使用 extraction-pattern.md 中的完整 parse_date（已覆盖所有已知格式） |

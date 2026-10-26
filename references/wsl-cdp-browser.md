@@ -12,13 +12,12 @@ WSL2 有独立的网络命名空间，Windows 上的 CDP 默认绑定 `127.0.0.1
 
 **Edge**（推荐，Windows 自带）：
 ```bash
-# 先关掉已有的实例
-/mnt/c/Windows/System32/taskkill.exe /F /IM msedge.exe 2>/dev/null; sleep 2
-
-# 用独立 user-data-dir 启动
+# 已有带 --remote-debugging-port=9223 的 Edge 在运行时，跳过本步，直接执行步骤 2。
+# 不要执行 taskkill：会关闭所有 Edge 窗口。
+# 用独立 user-data-dir 启动（<WIN_USER> 替换为 Windows 用户名）
 "/mnt/c/Program Files (x86)/Microsoft/Edge/Application/msedge.exe" \
-  --remote-debugging-port=9222 \
-  --user-data-dir="C:/Users/gdc3489/AppData/Local/Temp/edge_debug" \
+  --remote-debugging-port=9223 \
+  --user-data-dir="C:/Users/<WIN_USER>/AppData/Local/Temp/edge_debug" \
   --no-first-run --no-default-browser-check about:blank &
 sleep 5
 ```
@@ -26,8 +25,8 @@ sleep 5
 **Chrome**（备选，需自行安装）：
 ```bash
 "/mnt/c/Program Files/Google/Chrome/Application/chrome.exe" \
-  --remote-debugging-port=9222 \
-  --user-data-dir=C:/Users/gdc3489/AppData/Local/Temp/chrome_debug \
+  --remote-debugging-port=9223 \
+  --user-data-dir=C:/Users/<WIN_USER>/AppData/Local/Temp/chrome_debug \
   --no-first-run about:blank &
 sleep 5
 ```
@@ -35,14 +34,16 @@ sleep 5
 ### 2. 配置端口转发
 
 ```bash
-# 端口转发：0.0.0.0:9223 → 127.0.0.1:9222
+# 端口转发：WSL 虚拟网卡地址:9223 → 127.0.0.1:9223（转发到步骤 1 启动的 Edge 调试端口；只监听 WSL 网卡，不暴露到局域网）
+# <WSL_NET_IP> 为 Windows 上 WSL 虚拟网卡的 IPv4 地址，可用 Get-NetIPAddress 查询（InterfaceAlias 含 WSL）
 /mnt/c/Windows/System32/netsh.exe interface portproxy add v4tov4 \
-  listenport=9223 listenaddress=0.0.0.0 \
-  connectport=9222 connectaddress=127.0.0.1
+  listenport=9223 listenaddress=<WSL_NET_IP> \
+  connectport=9223 connectaddress=127.0.0.1
 
-# Windows 防火墙放行（必须！否则 WSL→Windows 流量被拦截）
+# Windows 防火墙只放行 WSL 网段（否则 WSL→Windows 流量被拦截；不要放行所有来源）
 /mnt/c/Windows/System32/netsh.exe advfirewall firewall add rule \
-  name="WSL CDP Proxy 9223" dir=in action=allow protocol=tcp localport=9223
+  name="WSL CDP Proxy 9223" dir=in action=allow protocol=tcp localport=9223 \
+  localip=<WSL_NET_IP> remoteip=<WSL_SUBNET>
 ```
 
 ### 3. 获取连接地址并验证

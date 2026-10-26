@@ -3,7 +3,7 @@
 微信读书搜索 - 通过微信读书搜索微信公众号文章
 ⚠️ 备用/调试工具，非主流程。主流程应使用 agent-browser --cdp 命令。
 
-需要：Windows Edge CDP 已启动（debug port 9222, portproxy 9223）
+需要：Windows Edge CDP 已启动（debug port 9223, WSL 网关地址上的 portproxy 9223）
      微信读书已登录
      搜索页面已经在浏览器中打开（可用 agent-browser 先导航）
 
@@ -18,7 +18,7 @@ import sys
 import argparse
 from urllib.parse import quote
 
-WINDOWS_IP = "172.19.80.1"
+WINDOWS_IP = subprocess.run(['ip', 'route'], capture_output=True, text=True, check=True).stdout.split('default via ')[1].split()[0]
 CDP_PORT = 9223
 
 def get_search_page_ws():

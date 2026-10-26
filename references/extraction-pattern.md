@@ -25,7 +25,7 @@
 import asyncio, json, subprocess, sys, re
 from datetime import datetime, timedelta
 
-WINDOWS_IP = "172.19.80.1"
+WINDOWS_IP = subprocess.run(['ip', 'route'], capture_output=True, text=True, check=True).stdout.split('default via ')[1].split()[0]
 CDP_PORT = 9223
 
 # ── 1. 获取搜索页面 WebSocket URL ──
@@ -262,7 +262,7 @@ async def main_extract_all():
         return await extract_all(ws)
 
 articles = asyncio.run(main_extract_all())
-with open('/tmp/urls.json', 'w') as f:
+with open('.weread-tmp/urls.json', 'w') as f:
     json.dump(articles, f, ensure_ascii=False, indent=2)
 print(f"Done: {sum(1 for a in articles if a['url'])}/{len(articles)} URLs")
 ```
@@ -287,10 +287,10 @@ print(f"Done: {sum(1 for a in articles if a['url'])}/{len(articles)} URLs")
    实测：336 篇分 4 批（100+100+100+36），总耗时约 20s，全部成功。
 3. **无需关闭标签页**：`window.open` 被拦截，不真正打开新标签页。
 4. **URL 验证**：提取后用 CDP 浏览器 `goto` 抽查 3-5 条，确认页面加载了文章标题（而非空壳/参数错误）。不要用 curl 验证——curl 可能拿到空壳模板但 HTTP 200。也不要因部分链接「参数错误」反复调整 URL 编码——这是微信服务端行为，与提取无关。
-5. **元数据采集可选**：如果已通过 agent-browser 采集了 `/tmp/arts.json`，可跳过 `extract_articles`，直接用 `extract_filtered`。读取文件时注意 `agent-browser eval` 输出被双重引号包裹（`"[{...}]"` 而非 `[{...}]`），需嵌套解析：
+5. **元数据采集可选**：如果已通过 agent-browser 采集了 `.weread-tmp/arts.json`，可跳过 `extract_articles`，直接用 `extract_filtered`。读取文件时注意 `agent-browser eval` 输出被双重引号包裹（`"[{...}]"` 而非 `[{...}]`），需嵌套解析：
 
 ```python
-with open('/tmp/arts.json', 'r') as f:
+with open('.weread-tmp/arts.json', 'r') as f:
     raw = f.read().strip()
 
 # Handle agent-browser eval double-quoting: parse repeatedly until we get a list
@@ -304,12 +304,12 @@ for _ in range(5):
         break
 
 if isinstance(all_data, str):
-    raise RuntimeError(f"Failed to parse /tmp/arts.json after 5 rounds")
+    raise RuntimeError(f"Failed to parse .weread-tmp/arts.json after 5 rounds")
 ```
 
 `all_data` 的结构与 `extract_articles()` 返回的一致，可直接喂给 `extract_filtered()` 或 `batch_extract_urls()`。
 6. **`Page.enable`**：保留但不再依赖 CDP 事件监听。
-7. **🚨 URL 防截断**：`extract_all` 后将 `results` 写入 `/tmp/urls.json`。回复用户时用 terminal 中 Python 脚本从 `/tmp/urls.json` 读取并 print Markdown Top 10，复制到回复。**严禁从 execute_code 控制台 print 输出中复制 URL**（可能截断缺参数）。
+7. **🚨 URL 防截断**：`extract_all` 后将 `results` 写入 `.weread-tmp/urls.json`。回复用户时用 terminal 中 Python 脚本从 `.weread-tmp/urls.json` 读取并 print Markdown Top 10，复制到回复。**严禁从 execute_code 控制台 print 输出中复制 URL**（可能截断缺参数）。
 
 ## 路径 A：agent-browser eval 同步提取（简易路径）
 
@@ -336,7 +336,7 @@ agent-browser eval "
         });
     });
     return JSON.stringify(arts);
-})()" > /tmp/arts.json
+})()" > .weread-tmp/arts.json
 ```
 
 ### Step A2: 同步分批提取 URL（>50 篇推荐）
@@ -360,7 +360,7 @@ agent-browser eval "
     }
     window.open = orig;
     return JSON.stringify(results);
-})()" > /tmp/urls_batchN.json
+})()" > .weread-tmp/urls_batchN.json
 ```
 
 **实测数据（2026-06-09，「agent」246篇）：**
@@ -385,7 +385,7 @@ agent-browser eval "
     }
     window.open = orig;
     return JSON.stringify(results);
-})()" > /tmp/urls_raw.json
+})()" > .weread-tmp/urls_raw.json
 ```
 
 > ✅ Vue 的 click handler 同步触发 `window.open`，URL 在 eval 返回前就已写入。无需 async/await，无需 awaitPromise。
@@ -398,7 +398,7 @@ agent-browser eval "
 import json
 
 # 元数据（处理 agent-browser eval 双重引号）
-with open('/tmp/arts.json') as f:
+with open('.weread-tmp/arts.json') as f:
     raw = f.read().strip()
 data = raw
 for _ in range(5):
@@ -408,7 +408,7 @@ for _ in range(5):
 articles_data = data if isinstance(data, list) else []
 
 # URL 数据
-with open('/tmp/urls_raw.json') as f:
+with open('.weread-tmp/urls_raw.json') as f:
     raw = f.read().strip()
 data = raw
 for _ in range(5):
@@ -431,7 +431,7 @@ for a in articles_data:
         'url': url_map.get(a['idx'], '')
     })
 
-with open('/tmp/urls.json', 'w') as f:
+with open('.weread-tmp/urls.json', 'w') as f:
     json.dump(results, f, ensure_ascii=False, indent=2)
 print(f"Extracted: {sum(1 for r in results if r['url'])}/{len(results)} URLs")
 ```

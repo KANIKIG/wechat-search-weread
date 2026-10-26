@@ -23,7 +23,7 @@ LLM 判断能理解上下文语义，适应任何新出现的噪音类型。
 ```python
 import json
 
-with open('/tmp/urls.json') as f:
+with open('.weread-tmp/urls.json') as f:
     articles = json.load(f)
 
 for i, art in enumerate(articles):
@@ -45,12 +45,12 @@ import json
 
 keep_indices = [0,2,5,7]  # 替换为 LLM 判断结果
 
-with open('/tmp/urls.json') as f:
+with open('.weread-tmp/urls.json') as f:
     articles = json.load(f)
 
 filtered = [articles[i] for i in keep_indices if i < len(articles)]
 
-with open('/tmp/urls_filtered.json', 'w') as f:
+with open('.weread-tmp/urls_filtered.json', 'w') as f:
     json.dump(filtered, f, ensure_ascii=False, indent=2)
 
 print(f"筛选结果: {len(articles)} → {len(filtered)} 篇")
@@ -100,7 +100,7 @@ print(f"筛选结果: {len(articles)} → {len(filtered)} 篇")
 
 **第二轮流程**：
 1. 去重后得到"新文章"列表
-2. **先写入临时文件**（`/tmp/new_articles.json`），暂不更新持久化历史
+2. **先写入临时文件**（`.weread-tmp/new_articles.json`），暂不更新持久化历史
 3. 逐条审查新文章的标题+摘要
 4. 如发现误保留文章，**从临时文件移除 + 不将其 dataId 加入 seen_ids**
 5. 审查通过后再更新持久化 JSON
@@ -124,8 +124,8 @@ kept = [a for i, a in enumerate(articles) if i not in exclude]
 ```
 
 **两轮过滤在自主模式下的执行顺序**：
-1. 第一轮：全量粗筛（对 `/tmp/urls.json` 全部文章）→ 写入 `/tmp/urls_filtered.json`
-2. 去重：从 `/tmp/urls_filtered.json` 中排除已见 dataId → 写入 `/tmp/new_articles.json`
+1. 第一轮：全量粗筛（对 `.weread-tmp/urls.json` 全部文章）→ 写入 `.weread-tmp/urls_filtered.json`
+2. 去重：从 `.weread-tmp/urls_filtered.json` 中排除已见 dataId → 写入 `.weread-tmp/new_articles.json`
 3. 第二轮：精筛仅对新文章 → **先审查再写持久化**（避免回退操作）
 4. 确认无误后一次性追加到持久化 JSON
 
@@ -158,8 +158,8 @@ kept = [a for i, a in enumerate(articles) if i not in exclude]
 
 - **仅根据标题+摘要判断**，不读正文，省 token
 - 候选项很多时（>100篇），打印会被截断。分两次 execute_code 调用：前半段 + 后半段
-- 筛选后写入新文件（如 `/tmp/urls_filtered.json`），不动原始数据
+- 筛选后写入新文件（如 `.weread-tmp/urls_filtered.json`），不动原始数据
 - 后续去重/格式化从筛选后的文件取数据
 - **输出格式化必须用 execute_code 从 JSON 读 URL**，terminal 输出会截断长 URL
-- **自主模式第二轮必须先审查再写持久化**：先写 `/tmp/new_articles.json`，审查通过后再追加到持久化文件，避免回退操作
+- **自主模式第二轮必须先审查再写持久化**：先写 `.weread-tmp/new_articles.json`，审查通过后再追加到持久化文件，避免回退操作
 - **持久化 dedup 用 dataId 做 key**：每篇微信文章有唯一 `data-id`，首次运行时初始化 `seen_ids` 集合，后续追加时检查
